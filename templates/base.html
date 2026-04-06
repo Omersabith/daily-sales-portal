@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>{% block title %}Daily Sales Portal{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script>
+      (() => {
+        const storedTheme = localStorage.getItem("portal-theme");
+        const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const theme = storedTheme || (systemPrefersDark ? "dark" : "light");
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Promoter Sales Portal</p>
+          <h1>Daily Sales Workspace</h1>
+          <div class="brand-band" aria-label="Anker family brands">
+            <span class="brand-pill brand-anker">ANKER</span>
+            <span class="brand-pill brand-eufy">eufy</span>
+            <span class="brand-pill brand-nebula">NEBULA</span>
+            <span class="brand-pill brand-soundcore">soundcore</span>
+          </div>
+        </div>
+        {% if current_user %}
+          <div class="hero-panel">
+            <span class="user-badge">{{ current_user["full_name"] }} | {{ current_user["role"]|replace('_', ' ')|title }}</span>
+            <nav class="hero-actions">
+              <button class="button button-secondary theme-toggle" type="button" id="theme-toggle" aria-label="Toggle dark mode">Dark Mode</button>
+              {% if current_user["role"] in ["super_admin", "admin"] %}
+                <a class="button button-secondary" href="{{ url_for('admin_dashboard') }}">Admin Dashboard</a>
+                <a class="button button-secondary" href="{{ url_for('admin_history') }}">History</a>
+                <a class="button button-secondary" href="{{ url_for('admin_setup') }}">Setup Hub</a>
+                <a class="button button-secondary" href="{{ url_for('manage_targets') }}">Targets</a>
+                <a class="button button-secondary" href="{{ url_for('admin_corrections') }}">Corrections</a>
+                <a class="button button-secondary" href="{{ url_for('manage_users') }}">Users</a>
+                <a class="button button-secondary" href="{{ url_for('manage_skus') }}">SKUs</a>
+                {% if current_user["role"] == "super_admin" %}
+                  <a class="button button-secondary" href="{{ url_for('import_setup') }}">Import Setup</a>
+                {% endif %}
+                <a class="button button-secondary" href="{{ url_for('view_audit_log') }}">Audit</a>
+              {% else %}
+                <a class="button button-secondary" href="{{ url_for('promoter_dashboard') }}">My Sales</a>
+                <a class="button button-secondary" href="{{ url_for('my_corrections') }}">My Corrections</a>
+                <a class="button" href="{{ url_for('create_sale') }}">Update Sale</a>
+              {% endif %}
+              <a class="button button-secondary" href="{{ url_for('logout') }}">Logout</a>
+            </nav>
+          </div>
+        {% endif %}
+      </header>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <section class="flash-stack">
+            {% for category, message in messages %}
+              <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          </section>
+        {% endif %}
+      {% endwith %}
+
+      <main>
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+    <script>
+      (() => {
+        const root = document.documentElement;
+        const toggle = document.getElementById("theme-toggle");
+        if (!toggle) return;
+
+        const syncLabel = () => {
+          const isDark = root.getAttribute("data-theme") === "dark";
+          toggle.textContent = isDark ? "Light Mode" : "Dark Mode";
+          toggle.setAttribute("aria-pressed", String(isDark));
+        };
+
+        toggle.addEventListener("click", () => {
+          const nextTheme = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+          root.setAttribute("data-theme", nextTheme);
+          localStorage.setItem("portal-theme", nextTheme);
+          syncLabel();
+        });
+
+        syncLabel();
+      })();
+    </script>
+  </body>
+</html>

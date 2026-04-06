@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Corrections | Daily Sales Portal{% endblock %}
+
+{% block content %}
+  <section class="panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">{% if admin_mode %}Admin Review{% else %}My Requests{% endif %}</p>
+        <h2>{% if admin_mode %}Correction Requests{% else %}My Correction Requests{% endif %}</h2>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Sale Date</th>
+            <th>Promoter</th>
+            <th>Current</th>
+            <th>Requested</th>
+            <th>Reason</th>
+            <th>Status</th>
+            {% if admin_mode %}<th>Decision</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for request in requests %}
+            <tr>
+              <td>{{ request["sale_date"] }}</td>
+              <td>{{ request["promoter_name"] }}</td>
+              <td>{{ request["current_sku_code"] }} | Qty {{ request["current_quantity"] }} | {{ "%.2f"|format(request["current_sale_amount"]) }}</td>
+              <td>{{ request["requested_sku_code"] }} | Qty {{ request["requested_quantity"] }} | {{ "%.2f"|format(request["requested_sale_amount"]) }}</td>
+              <td>{{ request["request_reason"] }}</td>
+              <td>
+                <span class="status-badge {% if request['status'] == 'approved' %}status-good{% elif request['status'] == 'pending' %}status-open{% else %}status-locked{% endif %}">
+                  {{ request["status"]|title }}
+                </span>
+              </td>
+              {% if admin_mode %}
+                <td class="actions-cell">
+                  {% if request["status"] == "pending" %}
+                    <form method="post" action="{{ url_for('approve_correction', request_id=request['id']) }}">
+                      <button class="table-button" type="submit">Approve</button>
+                    </form>
+                    <form method="post" action="{{ url_for('reject_correction', request_id=request['id']) }}">
+                      <button class="table-button" type="submit">Reject</button>
+                    </form>
+                  {% else %}
+                    <span class="locked-text">{{ request["reviewer_username"] or "-" }}</span>
+                  {% endif %}
+                </td>
+              {% endif %}
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="{% if admin_mode %}7{% else %}6{% endif %}" class="empty-state">No correction requests found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

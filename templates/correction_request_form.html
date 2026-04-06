@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Request Correction | Daily Sales Portal{% endblock %}
+
+{% block content %}
+  <section class="panel form-panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Correction Request</p>
+        <h2>Request Sale Correction</h2>
+        <p class="section-copy">Locked sales cannot be edited directly by promoters. Submit the corrected values below for admin review.</p>
+      </div>
+    </div>
+
+    <div class="entry-lockup">
+      <div class="entry-lockup-card">
+        <span class="entry-lockup-label">Original Sale Date</span>
+        <strong>{{ sale["sale_date"] }}</strong>
+      </div>
+      <div class="entry-lockup-card">
+        <span class="entry-lockup-label">Location</span>
+        <strong>{{ sale["location"] }}</strong>
+      </div>
+      <div class="entry-lockup-card">
+        <span class="entry-lockup-label">Current Sale</span>
+        <strong>{{ sale["sku_code"] }} | Qty {{ sale["quantity"] }} | {{ "%.2f"|format(sale["sale_amount"]) }}</strong>
+      </div>
+    </div>
+
+    <form class="sales-form" method="post">
+      <input type="hidden" name="sale_date" value="{{ sale['sale_date'] }}">
+      <input type="hidden" name="location" value="{{ sale['location'] }}">
+      <label class="full-width">
+        <span>SKU</span>
+        <select name="sku_code" required>
+          <option value="">Select SKU</option>
+          {% for sku in skus %}
+            <option value="{{ sku['sku_code'] }}" {% if requested_sale['sku_code'] == sku['sku_code'] %}selected{% endif %}>
+              {{ sku['sku_code'] }} - {{ sku['sku_name'] }}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Quantity</span>
+        <input type="number" name="quantity" min="1" value="{{ requested_sale['quantity'] or '' }}" required>
+      </label>
+      <label>
+        <span>Amount</span>
+        <input type="number" name="selling_price" min="0" step="0.01" value="{{ requested_sale['selling_price'] or '' }}" required>
+      </label>
+      <label class="full-width">
+        <span>Reason for correction</span>
+        <textarea name="request_reason" rows="4" placeholder="Explain why this correction is needed" required>{{ requested_sale['request_reason'] or '' }}</textarea>
+      </label>
+      <div class="form-actions">
+        <a class="button button-secondary" href="{{ url_for('promoter_dashboard', sale_date=sale['sale_date']) }}">Cancel</a>
+        <button class="button" type="submit">Submit Request</button>
+      </div>
+    </form>
+  </section>
+{% endblock %}

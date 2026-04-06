@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Promoter Targets | Daily Sales Portal{% endblock %}
+
+{% block content %}
+  <section class="panel form-panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Admin Control</p>
+        <h2>{{ "Edit Promoter Target" if editing_target else "Set Promoter Targets" }}</h2>
+        <p class="section-copy">Targets are assigned by promoter and period, then used in the dashboards to calculate achievement percentage.</p>
+      </div>
+      {% if editing_target %}
+        <a class="button button-secondary" href="{{ url_for('manage_targets') }}">Cancel Edit</a>
+      {% endif %}
+    </div>
+
+    <form class="sales-form" method="post">
+      <input type="hidden" name="form_mode" value="{{ target_form['form_mode'] }}">
+      <input type="hidden" name="editing_target_id" value="{{ target_form['editing_target_id'] }}">
+      <label>
+        <span>From date</span>
+        <input type="date" name="target_from" value="{{ target_form['target_from'] }}" required>
+      </label>
+      <label>
+        <span>To date</span>
+        <input type="date" name="target_to" value="{{ target_form['target_to'] }}" required>
+      </label>
+      <label>
+        <span>Promoter</span>
+        <select name="promoter_username" required>
+          <option value="">Select promoter</option>
+          {% for promoter in promoters %}
+            <option value="{{ promoter['username'] }}" {% if target_form['promoter_username'] == promoter['username'] %}selected{% endif %}>{{ promoter['full_name'] }} | {{ promoter['location'] }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Target amount</span>
+        <input type="number" name="target_amount" min="0" step="0.01" value="{{ target_form['target_amount'] }}" required>
+      </label>
+      <label class="full-width">
+        <span>Notes</span>
+        <textarea name="notes" rows="3" placeholder="Optional admin note">{{ target_form['notes'] }}</textarea>
+      </label>
+      <div class="form-actions">
+        <button class="button" type="submit">{{ "Update Target" if editing_target else "Save Target" }}</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Saved Targets</p>
+        <h2>Promoter Target Log</h2>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>From</th>
+            <th>To</th>
+            <th>Promoter</th>
+            <th>Target</th>
+            <th>Notes</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for target in targets %}
+            <tr>
+              <td>{{ target["target_from"] }}</td>
+              <td>{{ target["target_to"] }}</td>
+              <td>{{ target["promoter_name"] }}</td>
+              <td>{{ "%.2f"|format(target["target_amount"]) }}</td>
+              <td>{{ target["notes"] }}</td>
+              <td>
+                <a class="table-link" href="{{ url_for('manage_targets', edit=target['id']) }}">Edit</a>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6" class="empty-state">No promoter targets saved yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

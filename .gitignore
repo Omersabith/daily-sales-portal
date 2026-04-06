@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+.codex-deploy-staging/
+*.tgz
+backups/
+daily_sales_portal.xlsx
+sales_portal.db
+_import_previews/

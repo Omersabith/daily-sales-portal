@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Login | Daily Sales Portal</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script>
+      (() => {
+        const storedTheme = localStorage.getItem("portal-theme");
+        const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const theme = storedTheme || (systemPrefersDark ? "dark" : "light");
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
+  </head>
+  <body class="login-body">
+    <div class="login-shell">
+      <section class="login-card">
+        <div class="section-heading">
+          <div></div>
+          <button class="button button-secondary theme-toggle" type="button" id="theme-toggle" aria-label="Toggle dark mode">Dark Mode</button>
+        </div>
+        <p class="eyebrow">Secure Access</p>
+        <h1>Promoter & Admin Login</h1>
+        <p class="hero-copy">Use your username and password to update daily sales or review admin performance dashboards.</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <section class="flash-stack">
+              {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+              {% endfor %}
+            </section>
+          {% endif %}
+        {% endwith %}
+
+        <form class="sales-form" method="post">
+          <label>
+            <span>Username</span>
+            <input type="text" name="username" required>
+          </label>
+          <label>
+            <span>Password</span>
+            <input type="password" name="password" required>
+          </label>
+          <button class="button" type="submit">Login</button>
+        </form>
+
+        <div class="hint-card">
+          <strong>Default access</strong>
+          <p>`admin / admin123` for admin, `promoter1 / promoter123` for promoter.</p>
+        </div>
+      </section>
+    </div>
+    <script>
+      (() => {
+        const root = document.documentElement;
+        const toggle = document.getElementById("theme-toggle");
+        if (!toggle) return;
+
+        const syncLabel = () => {
+          const isDark = root.getAttribute("data-theme") === "dark";
+          toggle.textContent = isDark ? "Light Mode" : "Dark Mode";
+          toggle.setAttribute("aria-pressed", String(isDark));
+        };
+
+        toggle.addEventListener("click", () => {
+          const nextTheme = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+          root.setAttribute("data-theme", nextTheme);
+          localStorage.setItem("portal-theme", nextTheme);
+          syncLabel();
+        });
+
+        syncLabel();
+      })();
+    </script>
+  </body>
+</html>

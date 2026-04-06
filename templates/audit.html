@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Log | Daily Sales Portal{% endblock %}
+
+{% block content %}
+  <section class="panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Control SOP</p>
+        <h2>Audit Log</h2>
+        <p class="section-copy">Corrections, user changes, SKU updates, and target changes are logged here for admin review.</p>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>User</th>
+            <th>Role</th>
+            <th>Action</th>
+            <th>Entity</th>
+            <th>Entity ID</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in audit_logs %}
+            <tr>
+              <td>{{ log["event_time"] }}</td>
+              <td>{{ log["actor_username"] }}</td>
+              <td>{{ log["actor_role"] }}</td>
+              <td>{{ log["action"] }}</td>
+              <td>{{ log["entity_type"] }}</td>
+              <td>{{ log["entity_id"] }}</td>
+              <td>{{ log["details"] }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="7" class="empty-state">No audit records available yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

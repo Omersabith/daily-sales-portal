@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: daily-sales-portal
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: APP_DATA_DIR
+        value: /var/data
+      - key: SECRET_KEY
+        generateValue: true
+    disk:
+      name: daily-sales-portal-data
+      mountPath: /var/data
+      sizeGB: 1

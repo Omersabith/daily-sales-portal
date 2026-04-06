@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}Import Setup | Daily Sales Portal{% endblock %}
+
+{% block content %}
+  <section class="panel form-panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Admin Setup</p>
+        <h2>Import Backend Template</h2>
+        <p class="section-copy">Upload the filled backend template workbook. The portal now previews every row first, flags errors sheet by sheet, and only imports after you confirm.</p>
+      </div>
+    </div>
+
+    <form class="sales-form" method="post" enctype="multipart/form-data">
+      <label class="full-width">
+        <span>Template workbook</span>
+        <input type="file" name="backend_file" accept=".xlsx" required>
+      </label>
+      <div class="form-actions">
+        <button class="button" type="submit">Preview Workbook</button>
+      </div>
+    </form>
+  </section>
+
+  {% if preview %}
+    <section class="panel notice-panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Preview Result</p>
+          <h2>{{ preview.filename }}</h2>
+          <p class="section-copy">Generated at {{ preview.generated_at }}. Review the row-level checks below before confirming.</p>
+        </div>
+        <span class="status-badge {{ 'status-good' if preview.is_valid else 'status-locked' }}">
+          {{ "Ready to import" if preview.is_valid else "Needs fixes" }}
+        </span>
+      </div>
+
+      {% if preview.summary %}
+        <div class="stats-grid">
+          <article class="stat-card">
+            <span class="stat-label">Users</span>
+            <strong>{{ preview.summary.users.valid }}/{{ preview.summary.users.total }}</strong>
+            <span class="stat-note">{{ preview.summary.users.invalid }} invalid row(s)</span>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">SKUs</span>
+            <strong>{{ preview.summary.skus.valid }}/{{ preview.summary.skus.total }}</strong>
+            <span class="stat-note">{{ preview.summary.skus.invalid }} invalid row(s)</span>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Targets</span>
+            <strong>{{ preview.summary.targets.valid }}/{{ preview.summary.targets.total }}</strong>
+            <span class="stat-note">{{ preview.summary.targets.invalid }} invalid row(s)</span>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Historical Sales</span>
+            <strong>{{ preview.summary.historical_sales.valid }}/{{ preview.summary.historical_sales.total }}</strong>
+            <span class="stat-note">{{ preview.summary.historical_sales.invalid }} invalid row(s)</span>
+          </article>
+        </div>
+      {% endif %}
+
+      {% if preview.errors %}
+        <div class="flash-stack">
+          {% for message in preview.errors %}
+            <div class="flash flash-error">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <div class="form-actions">
+        {% if preview.is_valid %}
+          <form method="post" action="{{ url_for('confirm_import_setup') }}">
+            <button class="button" type="submit">Confirm Import</button>
+          </form>
+        {% endif %}
+        <form method="post" action="{{ url_for('discard_import_setup') }}">
+          <button class="button button-secondary" type="submit">Clear Preview</button>
+        </form>
+      </div>
+    </section>
+
+    {% for sheet_label, row_key in [("Users", "users"), ("SKUs", "skus"), ("Targets", "targets"), ("Historical Sales", "historical_sales")] %}
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Row Validation</p>
+            <h2>{{ sheet_label }}</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Row</th>
+                <th>Status</th>
+                <th>Preview</th>
+                <th>Validation Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in preview.row_results[row_key] %}
+                <tr>
+                  <td>{{ row.row_number }}</td>
+                  <td>
+                    <span class="status-badge {{ 'status-good' if row.status == 'valid' else 'status-locked' }}">
+                      {{ row.status|title }}
+                    </span>
+                  </td>
+                  <td>
+                    {% if row_key == "users" %}
+                      {{ row.preview.username }} | {{ row.preview.full_name }} | {{ row.preview.role }} | {{ row.preview.location }}
+                    {% elif row_key == "skus" %}
+                      {{ row.preview.sku_code }} | {{ row.preview.sku_name }} | {{ row.preview.category }} | {{ "%.2f"|format(row.preview.default_price or 0) }}
+                    {% elif row_key == "historical_sales" %}
+                      {{ row.preview.promoter_username }} | {{ row.preview.promoter_name or "Unknown" }} | {{ row.preview.period_from }} to {{ row.preview.period_to }} | {{ "%.2f"|format(row.preview.total_sales or 0) }}
+                    {% else %}
+                      {{ row.preview.promoter_username }} | {{ row.preview.promoter_name or "Unknown" }} | {{ row.preview.target_from }} to {{ row.preview.target_to }} | {{ "%.2f"|format(row.preview.target_amount or 0) }}
+                    {% endif %}
+                  </td>
+                  <td>{{ row.messages|join(" ") }}</td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="4">No rows found in this sheet.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {% endfor %}
+  {% endif %}
+
+  <section class="panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Required Format</p>
+        <h2>What the import reads</h2>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Sheet</th>
+            <th>Required Columns</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Users</td>
+            <td>`username`, `plain_password` or `password_hash`, `full_name`, `role`, `location`, `active`</td>
+            <td>Use `plain_password` for first-time setup. The system hashes it during import.</td>
+          </tr>
+          <tr>
+            <td>SKUs</td>
+            <td>`sku_code`, `sku_name`, `category`, `default_price`, `active`</td>
+            <td>Only `active = yes` SKUs appear in promoter entry. `default_price` must be numeric.</td>
+          </tr>
+          <tr>
+            <td>Targets</td>
+            <td>`target_from`, `target_to`, `promoter_username`, `target_amount`, `notes`, `updated_at`</td>
+            <td>Use a calendar range. `promoter_username` must match an active promoter in the `Users` sheet.</td>
+          </tr>
+          <tr>
+            <td>Historical Sales</td>
+            <td>`period_from`, `period_to`, `promoter_username`, `total_sales`, `notes`, `updated_at`</td>
+            <td>Use this to backfill promoter totals for periods before the portal went live.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

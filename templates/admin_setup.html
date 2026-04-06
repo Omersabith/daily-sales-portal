@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Setup Hub | Daily Sales Portal{% endblock %}
+
+{% block content %}
+  <section class="stats-grid">
+    <article class="stat-card">
+      <span class="stat-label">Active Users</span>
+      <strong>{{ active_users }}</strong>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">Active SKUs</span>
+      <strong>{{ active_skus }}</strong>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">Targets</span>
+      <strong>{{ target_count }}</strong>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">Sales Rows</span>
+      <strong>{{ sales_count }}</strong>
+    </article>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Admin Setup</p>
+        <h2>Setup Hub</h2>
+        <p class="section-copy">Use this page as the one place to prepare the portal before go-live. Import master data, manage users and SKUs, update targets, or clear demo sales.</p>
+      </div>
+    </div>
+
+    <div class="setup-grid">
+      {% if can_manage_imports %}
+        <a class="setup-card" href="{{ url_for('import_setup') }}">
+          <span class="setup-kicker">Step 1</span>
+          <h3>Import Workbook</h3>
+          <p>Upload the backend template with users, SKUs, and targets.</p>
+        </a>
+      {% endif %}
+
+      <a class="setup-card" href="{{ url_for('manage_users') }}">
+        <span class="setup-kicker">{% if can_manage_admins %}Step 2{% else %}Access{% endif %}</span>
+        <h3>Users</h3>
+        <p>
+          {% if can_manage_admins %}
+            Review promoter and admin accounts, login access, and locations.
+          {% else %}
+            Review promoter accounts, login access, and outlet assignments.
+          {% endif %}
+        </p>
+      </a>
+
+      <a class="setup-card" href="{{ url_for('manage_skus') }}">
+        <span class="setup-kicker">Step 3</span>
+        <h3>SKU Master</h3>
+        <p>Confirm SKU code, description, category mapping, and active status.</p>
+      </a>
+
+      <a class="setup-card" href="{{ url_for('manage_targets') }}">
+        <span class="setup-kicker">Step 4</span>
+        <h3>Targets</h3>
+        <p>Check category target values that drive achievement on the dashboard.</p>
+      </a>
+
+      <a class="setup-card" href="{{ url_for('view_audit_log') }}">
+        <span class="setup-kicker">Control</span>
+        <h3>Audit Log</h3>
+        <p>Review setup changes, imports, and later corrections in one history.</p>
+      </a>
+
+      <form class="setup-card setup-card-danger" method="post" action="{{ url_for('clear_sales') }}">
+        <span class="setup-kicker">Reset</span>
+        <h3>Clear Sales Data</h3>
+        <p>Remove demo or test sales while keeping users, SKUs, targets, and audit history.</p>
+        <button class="button" type="submit">Clear Sales</button>
+      </form>
+    </div>
+  </section>
+{% endblock %}

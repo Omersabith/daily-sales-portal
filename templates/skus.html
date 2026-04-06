@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}SKU Management | Daily Sales Portal{% endblock %}
+
+{% block content %}
+  <section class="panel form-panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Admin Setup</p>
+        <h2>{{ "Edit SKU" if editing_sku else "Create SKU" }}</h2>
+        <p class="section-copy">Maintain the SKU master with correct category mapping and default selling price.</p>
+      </div>
+    </div>
+
+    <form class="sales-form" method="post">
+      <input type="hidden" name="form_mode" value="{{ 'edit' if editing_sku else 'create' }}">
+      <input type="hidden" name="editing_code" value="{{ editing_sku['sku_code'] if editing_sku else '' }}">
+      <label>
+        <span>SKU code</span>
+        <input type="text" name="sku_code" value="{{ editing_sku['sku_code'] if editing_sku else '' }}" {% if editing_sku %}readonly{% endif %} required>
+      </label>
+      <label>
+        <span>SKU name</span>
+        <input type="text" name="sku_name" value="{{ editing_sku['sku_name'] if editing_sku else '' }}" required>
+      </label>
+      <label>
+        <span>Category</span>
+        <input type="text" name="category" value="{{ editing_sku['category'] if editing_sku else '' }}" required>
+      </label>
+      <label>
+        <span>Default price</span>
+        <input type="number" name="default_price" min="0" step="0.01" value="{{ editing_sku['default_price'] if editing_sku else '' }}" required>
+      </label>
+      <label>
+        <span>Active</span>
+        <select name="active" required>
+          <option value="yes" {% if not editing_sku or editing_sku['active'] == 'yes' %}selected{% endif %}>Yes</option>
+          <option value="no" {% if editing_sku and editing_sku['active'] == 'no' %}selected{% endif %}>No</option>
+        </select>
+      </label>
+      <div class="form-actions">
+        {% if editing_sku %}
+          <a class="button button-secondary" href="{{ url_for('manage_skus') }}">Cancel Edit</a>
+        {% endif %}
+        <button class="button" type="submit">Save SKU</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">SKU Master</p>
+        <h2>Active and Inactive SKUs</h2>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>SKU Code</th>
+            <th>SKU Name</th>
+            <th>Category</th>
+            <th>Default Price</th>
+            <th>Active</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sku in skus %}
+            <tr>
+              <td>{{ sku["sku_code"] }}</td>
+              <td>{{ sku["sku_name"] }}</td>
+              <td>{{ sku["category"] }}</td>
+              <td>{{ "%.2f"|format(sku["default_price"]|float) }}</td>
+              <td>{{ sku["active"] }}</td>
+              <td><a class="table-link" href="{{ url_for('manage_skus', edit=sku['sku_code']) }}">Edit</a></td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6" class="empty-state">No SKUs available.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

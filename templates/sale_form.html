@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}{{ form_title }} | Daily Sales Portal{% endblock %}
+
+{% block content %}
+  <section class="panel form-panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Promoter Entry</p>
+        <h2>{{ form_title }}</h2>
+        <p class="section-copy">Type the SKU code to search, let category fill automatically, enter amount and quantity, and the total will calculate row by row.</p>
+        {% if user["role"] == "promoter" %}
+          <p class="section-copy">Promoter price entry is limited to the SKU RRP from the master file. Contact admin if a higher selling price is needed.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <form method="post" class="entry-batch-form">
+      <input type="hidden" name="sale_date" value="{{ sale['sale_date'] or '' }}">
+      <input type="hidden" name="location" value="{{ sale['location'] or '' }}">
+
+      <div class="entry-lockup">
+        <div class="entry-lockup-card">
+          <span class="entry-lockup-label">Sale Date</span>
+          <strong>{{ sale['sale_date'] or '' }}</strong>
+        </div>
+        <div class="entry-lockup-card">
+          <span class="entry-lockup-label">Location</span>
+          <strong>{{ sale['location'] or '' }}</strong>
+        </div>
+      </div>
+
+      <div class="entry-table-wrap">
+        <table class="entry-table">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Category</th>
+              <th>Price</th>
+              <th>Quantity</th>
+              <th>Total</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="entry_rows">
+            {% for row in sale_rows %}
+              <tr class="entry-row">
+                <td>
+                  <input
+                    type="text"
+                    class="sku-search"
+                    list="sku_options"
+                    value="{{ row['sku_code'] }}"
+                    placeholder="SKUs"
+                    autocomplete="off"
+                  >
+                  <input type="hidden" name="sku_code" class="sku-code" value="{{ row['sku_code'] }}">
+                </td>
+                <td>
+                  <input type="text" class="category-display" value="{{ row['category'] }}" placeholder="Category" readonly>
+                </td>
+                <td>
+                  <input type="number" name="selling_price" class="price-input" min="0" step="0.01" value="{{ row['selling_price'] }}" placeholder="Price">
+                </td>
+                <td>
+                  <input type="number" name="quantity" class="qty-input" min="1" value="{{ row['quantity'] }}" placeholder="Quantity">
+                </td>
+                <td>
+                  <input type="text" class="total-display" value="{{ row['sale_amount'] }}" placeholder="Total" readonly>
+                </td>
+                <td>
+                  <button type="button" class="row-delete" aria-label="Clear row">Delete</button>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <datalist id="sku_options">
+        {% for sku in skus %}
+          <option value="{{ sku['sku_code'] }}" label="{{ sku['sku_name'] }}"></option>
+        {% endfor %}
+      </datalist>
+
+      <label class="full-width">
+        <span>Notes</span>
+        <textarea name="notes" rows="3" placeholder="Optional notes for this bunch">{{ sale['notes'] or '' }}</textarea>
+      </label>
+
+      <div class="form-actions">
+        <a class="button button-secondary" href="{{ url_for('promoter_dashboard') }}">Cancel</a>
+        {% if is_bulk_entry %}
+          <button type="button" class="button button-secondary" id="add_row">Add Row</button>
+        {% endif %}
+        <button class="button" type="submit">{{ submit_label }}</button>
+      </div>
+    </form>
+  </section>
+
+  <template id="entry_row_template">
+    <tr class="entry-row">
+      <td>
+        <input type="text" class="sku-search" list="sku_options" value="" placeholder="SKUs" autocomplete="off">
+        <input type="hidden" name="sku_code" class="sku-code" value="">
+      </td>
+      <td>
+        <input type="text" class="category-display" value="" placeholder="Category" readonly>
+      </td>
+      <td>
+        <input type="number" name="selling_price" class="price-input" min="0" step="0.01" value="" placeholder="Price">
+      </td>
+      <td>
+        <input type="number" name="quantity" class="qty-input" min="1" value="" placeholder="Quantity">
+      </td>
+      <td>
+        <input type="text" class="total-display" value="0.00" placeholder="Total" readonly>
+      </td>
+      <td>
+        <button type="button" class="row-delete" aria-label="Clear row">Delete</button>
+      </td>
+    </tr>
+  </template>
+
+  <script>
+    const skuData = {{ skus|tojson }};
+    const skuIndex = Object.fromEntries(skuData.map((sku) => [sku.sku_code, sku]));
+    const rowsHost = document.getElementById("entry_rows");
+    const addRowButton = document.getElementById("add_row");
+    const rowTemplate = document.getElementById("entry_row_template");
+
+    function bindRow(row) {
+      const skuSearch = row.querySelector(".sku-search");
+      const skuCode = row.querySelector(".sku-code");
+      const category = row.querySelector(".category-display");
+      const qty = row.querySelector(".qty-input");
+      const price = row.querySelector(".price-input");
+      const total = row.querySelector(".total-display");
+      const removeButton = row.querySelector(".row-delete");
+
+      function syncSku() {
+        const typed = skuSearch.value.trim().toUpperCase();
+        const sku = skuIndex[typed];
+
+        if (!sku) {
+          skuCode.value = "";
+          category.value = "";
+          price.value = "";
+          total.value = "0.00";
+          updateTotal();
+          return;
+        }
+
+        skuSearch.value = sku.sku_code;
+        skuCode.value = sku.sku_code;
+        category.value = sku.category || "";
+        price.value = Number(sku.default_price || 0).toFixed(2);
+        updateTotal();
+      }
+
+      function updateTotal() {
+        const qtyValue = Number(qty.value || 0);
+        const priceValue = Number(price.value || 0);
+        total.value = (qtyValue * priceValue).toFixed(2);
+      }
+
+      function clearRow() {
+        skuSearch.value = "";
+        skuCode.value = "";
+        category.value = "";
+        qty.value = "";
+        price.value = "";
+        total.value = "0.00";
+      }
+
+      skuSearch.addEventListener("input", syncSku);
+      skuSearch.addEventListener("change", syncSku);
+      qty.addEventListener("input", updateTotal);
+      price.addEventListener("input", updateTotal);
+      removeButton.addEventListener("click", clearRow);
+      syncSku();
+    }
+
+    document.querySelectorAll(".entry-row").forEach(bindRow);
+
+    if (addRowButton) {
+      addRowButton.addEventListener("click", () => {
+        const fragment = rowTemplate.content.cloneNode(true);
+        const row = fragment.querySelector(".entry-row");
+        rowsHost.appendChild(fragment);
+        bindRow(rowsHost.lastElementChild);
+      });
+    }
+  </script>
+{% endblock %}

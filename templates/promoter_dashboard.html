@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}My Dashboard | Daily Sales Portal{% endblock %}
+
+{% block content %}
+  <section class="panel filter-panel">
+    <form class="filter-form" method="get">
+      <label>
+        <span>Period</span>
+        <select name="period">
+          <option value="week" {% if period == "week" %}selected{% endif %}>This Week</option>
+          <option value="month" {% if period == "month" %}selected{% endif %}>This Month</option>
+          <option value="custom" {% if period == "custom" %}selected{% endif %}>Custom Range</option>
+        </select>
+      </label>
+      <label>
+        <span>From</span>
+        <input type="date" name="date_from" value="{{ date_from }}">
+      </label>
+      <label>
+        <span>To</span>
+        <input type="date" name="date_to" value="{{ date_to }}">
+      </label>
+      <button class="button" type="submit">View</button>
+      <a class="button button-secondary" href="{{ url_for('export_sales', date_from=date_from, date_to=date_to) }}">Download Sales</a>
+    </form>
+  </section>
+
+  <section class="panel notice-panel">
+    <p class="notice-text">
+      Promoters can correct entries only for <strong>today ({{ today_iso }})</strong>. Older date corrections should be handled or approved by admin.
+    </p>
+  </section>
+
+  <section class="stats-grid">
+    <article class="stat-card">
+      <span class="stat-label">Entries</span>
+      <strong>{{ summary["entries"] }}</strong>
+      <span class="stat-note">Live portal sale rows</span>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">Quantity</span>
+      <strong>{{ summary["quantity"] }}</strong>
+      <span class="stat-note">Live portal quantity</span>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">Period Sales</span>
+      <strong>{{ "%.2f"|format(summary["sales"]) }}</strong>
+      <span class="stat-note">Live + historical totals</span>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">Target</span>
+      <strong>{{ "%.2f"|format(target_summary["target_amount"]) }}</strong>
+      <span class="stat-note">
+        {% if target_summary["has_target"] %}
+          {{ target_summary["period_from"] }} to {{ target_summary["period_to"] }}
+        {% else %}
+          No active target
+        {% endif %}
+      </span>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">Achieved</span>
+      <strong>{{ "%.2f"|format(target_summary["achieved_sales"]) }}</strong>
+      <span class="stat-note">
+        {% if summary["history_sources"] %}
+          Includes {{ summary["history_sources"] }} historical record(s)
+        {% else %}
+          Based on live sales only
+        {% endif %}
+      </span>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">Achievement %</span>
+      <strong>{{ "%.2f"|format(target_summary["achievement"]) }}%</strong>
+      <span class="stat-note">Target vs achieved</span>
+    </article>
+  </section>
+
+  <section class="panel notice-panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Performance View</p>
+        <h2>My Target vs Achieved</h2>
+        {% if target_summary["has_target"] %}
+          <p class="section-copy">This compares your active target period with all live sales and historical backfill totals between {{ target_summary["period_from"] }} and {{ target_summary["period_to"] }}.</p>
+        {% else %}
+          <p class="section-copy">No active target is set for this period yet. Your admin can assign a target to activate this view.</p>
+        {% endif %}
+      </div>
+      <span class="status-badge {{ 'status-good' if target_summary['achievement'] >= 100 else 'status-open' if target_summary['has_target'] else 'status-locked' }}">
+        {% if target_summary["has_target"] %}
+          {{ "%.2f"|format(target_summary["achievement"]) }}% achieved
+        {% else %}
+          No target
+        {% endif %}
+      </span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">My Live Updates</p>
+        <h2>Recorded Sales</h2>
+        <p class="section-copy">This table shows only live portal entries inside the selected period. Historical backfill totals are included in the performance cards above, not here.</p>
+      </div>
+      <a class="button" href="{{ url_for('create_sale') }}">Add Sale</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Location</th>
+            <th>SKU</th>
+            <th>Category</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th>Amount</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sale in sales %}
+            <tr>
+              <td>{{ sale["sale_date"] }}</td>
+              <td>{{ sale["location"] }}</td>
+              <td>{{ sale["sku_code"] }} - {{ sale["sku_name"] }}</td>
+              <td>
+                <span class="category-chip
+                  {% if 'eufy' in sale['category']|lower %} category-chip-eufy
+                  {% elif 'nebula' in sale['category']|lower %} category-chip-nebula
+                  {% elif 'soundcore' in sale['category']|lower %} category-chip-soundcore
+                  {% else %} category-chip-anker{% endif %}">
+                  {{ sale["category"] }}
+                </span>
+              </td>
+              <td>{{ sale["quantity"] }}</td>
+              <td>{{ "%.2f"|format(sale["selling_price"]) }}</td>
+              <td>{{ "%.2f"|format(sale["sale_amount"]) }}</td>
+              <td class="actions-cell">
+                {% if sale["is_editable_today"] %}
+                  <span class="status-badge status-open">Editable Today</span>
+                  <a class="table-link" href="{{ url_for('edit_sale', sale_id=sale['id']) }}">Edit</a>
+                  <form method="post" action="{{ url_for('delete_sale', sale_id=sale['id']) }}">
+                    <button class="table-button" type="submit">Delete</button>
+                  </form>
+                {% elif sale["has_pending_correction"] %}
+                  <span class="status-badge status-open">Correction Pending</span>
+                {% else %}
+                  <a class="table-link" href="{{ url_for('request_correction', sale_id=sale['id']) }}">Request Correction</a>
+                {% endif %}
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="8" class="empty-state">No live portal sales found for this period yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

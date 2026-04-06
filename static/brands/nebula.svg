@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 72" role="img" aria-labelledby="title">
+  <title>Nebula by Anker</title>
+  <rect width="220" height="72" rx="16" fill="#fff"/>
+  <path fill="#D7133A" d="M20 22h12l16.9 19.7V22h13.3v30H51.1L33.3 31.2V52H20V22Zm49.1 0h38.4v10H82.1v1.6h23v8.8h-23v1.8h25.7V52H69.1V22Zm42.2 0h16.3c9.6 0 15 4.8 15 11.9 0 7.8-6 12.2-15.4 12.2h-3V52h-12.9V22Zm15.4 15.2c2.3 0 3.8-1.2 3.8-3.1 0-2.1-1.5-3.1-3.8-3.1h-2.5v6.2h2.5Zm20.5-15.2h38.4v10h-25.4v1.6h23v8.8h-23v1.8H186V52h-38.8V22Zm10.7 37.8h7.8v2.3h-2.6V69h-2.6v-6.9h-2.6v-2.3Zm8.8 0h2.7l2.2 3.6 2.2-3.6h2.7V69h-2.5v-5.4l-2.4 3.7h-.1l-2.4-3.6V69h-2.4v-9.2Z"/>
+</svg>

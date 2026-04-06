@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}Sales History | Daily Sales Portal{% endblock %}
+
+{% block content %}
+  <section class="panel form-panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Admin Backfill</p>
+        <h2>{{ "Edit Historical Sales" if editing_history else "Add Historical Sales" }}</h2>
+        <p class="section-copy">Use this to add promoter sales for past weeks or months before the portal went live. This is summary-only data, so no SKU breakdown is needed.</p>
+      </div>
+      {% if editing_history %}
+        <a class="button button-secondary" href="{{ url_for('admin_history') }}">Cancel Edit</a>
+      {% endif %}
+    </div>
+
+    <form class="sales-form" method="post">
+      <input type="hidden" name="form_mode" value="{{ history_form['form_mode'] }}">
+      <input type="hidden" name="editing_history_id" value="{{ history_form['editing_history_id'] }}">
+      <label>
+        <span>From date</span>
+        <input type="date" name="period_from" value="{{ history_form['period_from'] }}" required>
+      </label>
+      <label>
+        <span>To date</span>
+        <input type="date" name="period_to" value="{{ history_form['period_to'] }}" required>
+      </label>
+      <label>
+        <span>Promoter</span>
+        <select name="promoter_username" required>
+          <option value="">Select promoter</option>
+          {% for promoter in promoters %}
+            <option value="{{ promoter['username'] }}" {% if history_form['promoter_username'] == promoter['username'] %}selected{% endif %}>{{ promoter['full_name'] }} | {{ promoter['location'] }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Total sale</span>
+        <input type="number" name="total_sales" min="0" step="0.01" value="{{ history_form['total_sales'] }}" required>
+      </label>
+      <label class="full-width">
+        <span>Notes</span>
+        <textarea name="notes" rows="3" placeholder="Optional admin note">{{ history_form['notes'] }}</textarea>
+      </label>
+      <div class="form-actions">
+        <button class="button" type="submit">{{ "Update Historical Sale" if editing_history else "Save Historical Sale" }}</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel filter-panel">
+    <form class="filter-form" method="get">
+      <label>
+        <span>Period</span>
+        <select name="period">
+          <option value="week" {% if period == "week" %}selected{% endif %}>This Week</option>
+          <option value="month" {% if period == "month" %}selected{% endif %}>This Month</option>
+          <option value="custom" {% if period == "custom" %}selected{% endif %}>Custom Range</option>
+        </select>
+      </label>
+      <label>
+        <span>From</span>
+        <input type="date" name="date_from" value="{{ date_from }}">
+      </label>
+      <label>
+        <span>To</span>
+        <input type="date" name="date_to" value="{{ date_to }}">
+      </label>
+      <button class="button" type="submit">View History</button>
+    </form>
+  </section>
+
+  <section class="stats-grid">
+    <article class="stat-card">
+      <span class="stat-label">Period Sales</span>
+      <strong>{{ "%.2f"|format(summary["total_sales"]) }}</strong>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">Period Target</span>
+      <strong>{{ "%.2f"|format(summary["total_target"]) }}</strong>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">Achievement %</span>
+      <strong>{{ "%.2f"|format(summary["achievement"]) }}%</strong>
+    </article>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">History View</p>
+        <h2>Promoter Sales History</h2>
+        <p class="section-copy">This combines live portal sales with any admin-added historical totals for the selected period.</p>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Promoter</th>
+            <th>Total Sale</th>
+            <th>Target</th>
+            <th>Achievement %</th>
+            <th>Historical Entries</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in promoter_rows %}
+            <tr>
+              <td>{{ row["promoter_name"] }}</td>
+              <td>{{ "%.2f"|format(row["sales"]) }}</td>
+              <td>{{ "%.2f"|format(row["target"] or 0) }}</td>
+              <td>
+                <span class="status-badge
+                  {% if row['achievement'] >= 100 %} status-good
+                  {% elif row['achievement'] >= 70 %} status-open
+                  {% else %} status-locked{% endif %}">
+                  {{ "%.2f"|format(row["achievement"]) }}%
+                </span>
+              </td>
+              <td>{{ row["history_sources"] or 0 }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="5" class="empty-state">No promoter history found for this period.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Backfill Log</p>
+        <h2>Historical Sales Records</h2>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>From</th>
+            <th>To</th>
+            <th>Promoter</th>
+            <th>Total Sale</th>
+            <th>Notes</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in history_rows %}
+            <tr>
+              <td>{{ row["period_from"] }}</td>
+              <td>{{ row["period_to"] }}</td>
+              <td>{{ row["promoter_name"] }}</td>
+              <td>{{ "%.2f"|format(row["total_sales"]) }}</td>
+              <td>{{ row["notes"] }}</td>
+              <td><a class="table-link" href="{{ url_for('admin_history', edit=row['id']) }}">Edit</a></td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6" class="empty-state">No historical sales records saved yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

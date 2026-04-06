@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | Daily Sales Portal{% endblock %}
+
+{% block content %}
+  <section class="panel filter-panel">
+    <form class="filter-form" method="get">
+      <label>
+        <span>Sale date</span>
+        <input type="date" name="sale_date" value="{{ selected_date }}">
+      </label>
+      <label>
+        <span>Promoter</span>
+        <input type="text" name="promoter" value="{{ promoter_filter }}" placeholder="Filter by promoter name">
+      </label>
+      <button class="button" type="submit">Apply Filters</button>
+    </form>
+  </section>
+
+  <section class="stats-grid">
+    <article class="stat-card">
+      <span class="stat-label">Entries</span>
+      <strong>{{ summary["entries"] }}</strong>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">Total Quantity</span>
+      <strong>{{ summary["total_quantity"] }}</strong>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">Total Sales</span>
+      <strong>{{ "%.2f"|format(summary["total_sales"]) }}</strong>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">Total Target</span>
+      <strong>{{ "%.2f"|format(summary["total_target"]) }}</strong>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">Active Promoters</span>
+      <strong>{{ summary["promoter_count"] }}</strong>
+    </article>
+  </section>
+
+  <section class="dashboard-grid">
+    <article class="panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">By Promoter</p>
+          <h2>Performance Snapshot</h2>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Promoter</th>
+              <th>Entries</th>
+              <th>Qty</th>
+              <th>Sales</th>
+              <th>Target</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in promoter_rows %}
+              <tr>
+                <td>{{ row["promoter_name"] }}</td>
+                <td>{{ row["entries"] }}</td>
+                <td>{{ row["total_quantity"] }}</td>
+                <td>{{ "%.2f"|format(row["total_sales"]) }}</td>
+                <td>{{ "%.2f"|format(row["total_target"] or 0) }}</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="5" class="empty-state">No promoter entries found for this date.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Daily Log</p>
+          <h2>Recorded Sales</h2>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Promoter</th>
+              <th>Location</th>
+              <th>Product</th>
+              <th>Qty</th>
+              <th>Sales</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sale in sales %}
+              <tr>
+                <td>{{ sale["sale_date"] }}</td>
+                <td>{{ sale["promoter_name"] }}</td>
+                <td>{{ sale["location"] }}</td>
+                <td>{{ sale["product_name"] }}</td>
+                <td>{{ sale["quantity"] }}</td>
+                <td>{{ "%.2f"|format(sale["sale_amount"]) }}</td>
+                <td class="actions-cell">
+                  <a class="table-link" href="{{ url_for('edit_sale', sale_id=sale['id']) }}">Edit</a>
+                  <form method="post" action="{{ url_for('delete_sale', sale_id=sale['id']) }}">
+                    <button class="table-button" type="submit">Delete</button>
+                  </form>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="7" class="empty-state">No sales recorded yet. Add the first daily sale to get started.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+{% endblock %}

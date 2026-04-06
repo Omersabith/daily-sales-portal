@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}User Management | Daily Sales Portal{% endblock %}
+
+{% block content %}
+  <section class="panel form-panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Admin Setup</p>
+        <h2>{{ "Edit User" if editing_user else "Create User" }}</h2>
+        <p class="section-copy">
+          {% if can_manage_admins %}
+            Create promoter logins, manage admin accounts, and control account status from the portal.
+          {% else %}
+            Manage promoter accounts and outlet assignments. Admin account control is reserved for super admin.
+          {% endif %}
+        </p>
+      </div>
+    </div>
+
+    <form class="sales-form" method="post">
+      <input type="hidden" name="form_mode" value="{{ 'edit' if editing_user else 'create' }}">
+      <input type="hidden" name="editing_username" value="{{ editing_user['username'] if editing_user else '' }}">
+      <label>
+        <span>Username</span>
+        <input type="text" name="username" value="{{ editing_user['username'] if editing_user else '' }}" {% if editing_user %}readonly{% endif %} required>
+      </label>
+      <label>
+        <span>Full name</span>
+        <input type="text" name="full_name" value="{{ editing_user['full_name'] if editing_user else '' }}" required>
+      </label>
+      <label>
+        <span>Role</span>
+        <select name="role" required>
+          <option value="promoter" {% if not editing_user or editing_user['role'] == 'promoter' %}selected{% endif %}>Promoter</option>
+          {% if can_manage_admins %}
+            <option value="admin" {% if editing_user and editing_user['role'] == 'admin' %}selected{% endif %}>Admin</option>
+            <option value="super_admin" {% if editing_user and editing_user['role'] == 'super_admin' %}selected{% endif %}>Super Admin</option>
+          {% endif %}
+        </select>
+      </label>
+      <label>
+        <span>Location</span>
+        <input type="text" name="location" value="{{ editing_user['location'] if editing_user else '' }}" required>
+      </label>
+      <label>
+        <span>Password {% if editing_user %}(leave blank to keep current){% endif %}</span>
+        <input type="password" name="password">
+      </label>
+      <label>
+        <span>Active</span>
+        <select name="active" required>
+          <option value="yes" {% if not editing_user or editing_user['active'] == 'yes' %}selected{% endif %}>Yes</option>
+          <option value="no" {% if editing_user and editing_user['active'] == 'no' %}selected{% endif %}>No</option>
+        </select>
+      </label>
+      <div class="form-actions">
+        {% if editing_user %}
+          <a class="button button-secondary" href="{{ url_for('manage_users') }}">Cancel Edit</a>
+        {% endif %}
+        <button class="button" type="submit">Save User</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">User List</p>
+        <h2>Portal Accounts</h2>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Location</th>
+            <th>Active</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+            <tr>
+              <td>{{ user["username"] }}</td>
+              <td>{{ user["full_name"] }}</td>
+              <td>{{ user["role"]|replace('_', ' ')|title }}</td>
+              <td>{{ user["location"] }}</td>
+              <td>{{ user["active"] }}</td>
+              <td><a class="table-link" href="{{ url_for('manage_users', edit=user['username']) }}">Edit</a></td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6" class="empty-state">No users available.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}
