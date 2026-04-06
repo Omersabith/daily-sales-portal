@@ -29,9 +29,9 @@ Then open [http://127.0.0.1:5000](http://127.0.0.1:5000).
 
 This app is now set up for Python hosts such as Render.
 
-- `render.yaml` provisions a web service and a persistent disk.
+- `render.yaml` provisions a web service and a managed Postgres database.
 - `Procfile` and `gunicorn app:app` provide a production start command.
-- `APP_DATA_DIR` controls where the SQLite database, workbook, and import previews are stored.
+- `DATABASE_URL` switches the app from local SQLite to hosted Postgres automatically.
 - `SECRET_KEY` should be set in the host environment for production.
 
 ### Render
@@ -39,20 +39,15 @@ This app is now set up for Python hosts such as Render.
 1. Push this project to a Git provider.
 2. Create a new Render Blueprint or Web Service from the repo.
 3. Keep the generated `SECRET_KEY`.
-4. Make sure the persistent disk is mounted at `/var/data`.
+4. Let Render create the managed Postgres database declared in `render.yaml`.
 5. Deploy.
-
-The service will store its writable files here:
-
-- `/var/data/sales_portal.db`
-- `/var/data/daily_sales_portal.xlsx`
-- `/var/data/_import_previews/`
 
 If you deploy somewhere else, set these environment variables as needed:
 
 - `PORT`
 - `SECRET_KEY`
-- `APP_DATA_DIR` or `DATABASE_PATH` / `DATA_FILE` / `IMPORT_PREVIEW_DIR`
+- `DATABASE_URL` for hosted Postgres, or `DATABASE_PATH` for local SQLite
+- `DATA_FILE` only if you want to seed from or export around a workbook path
 
 ## Default Login
 
@@ -61,7 +56,9 @@ If you deploy somewhere else, set these environment variables as needed:
 
 ## Data
 
-The app stores data in a local Excel workbook named `daily_sales_portal.xlsx` in the project folder, so it does not require SQL or a database server.
+For local development, the app stores data in `sales_portal.db` and can seed from `daily_sales_portal.xlsx`.
+
+For hosted deployment, set `DATABASE_URL` and the app will use Postgres instead of local files.
 
 Sheets created automatically:
 

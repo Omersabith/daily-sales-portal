@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+import json
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from openpyxl import load_workbook
 from werkzeug.security import generate_password_hash
+
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except ImportError:  # pragma: no cover - optional for local SQLite-only runs
+    psycopg = None
+    dict_row = None
 
 
 USERS_COLUMNS = ["username", "password_hash", "full_name", "role", "location", "active"]
@@ -100,6 +110,117 @@ DEFAULT_SKUS = [
     },
 ]
 
+SCHEMA_STATEMENTS = [
+    """
+    CREATE TABLE IF NOT EXISTS users (
+        username TEXT PRIMARY KEY,
+        password_hash TEXT NOT NULL,
+        full_name TEXT NOT NULL,
+        role TEXT NOT NULL,
+        location TEXT NOT NULL,
+        active TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS skus (
+        sku_code TEXT PRIMARY KEY,
+        sku_name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        default_price REAL NOT NULL,
+        active TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS targets (
+        id INTEGER PRIMARY KEY,
+        target_from TEXT NOT NULL,
+        target_to TEXT NOT NULL,
+        promoter_username TEXT NOT NULL,
+        promoter_name TEXT NOT NULL,
+        target_amount REAL NOT NULL,
+        notes TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS sales (
+        id INTEGER PRIMARY KEY,
+        sale_date TEXT NOT NULL,
+        username TEXT NOT NULL,
+        promoter_name TEXT NOT NULL,
+        location TEXT NOT NULL,
+        sku_code TEXT NOT NULL,
+        sku_name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        selling_price REAL NOT NULL,
+        sale_amount REAL NOT NULL,
+        notes TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS audit_logs (
+        id INTEGER PRIMARY KEY,
+        event_time TEXT NOT NULL,
+        actor_username TEXT NOT NULL,
+        actor_role TEXT NOT NULL,
+        action TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        details TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS historical_sales (
+        id INTEGER PRIMARY KEY,
+        period_from TEXT NOT NULL,
+        period_to TEXT NOT NULL,
+        promoter_username TEXT NOT NULL,
+        promoter_name TEXT NOT NULL,
+        total_sales REAL NOT NULL,
+        notes TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS correction_requests (
+        id INTEGER PRIMARY KEY,
+        sale_id INTEGER NOT NULL,
+        sale_date TEXT NOT NULL,
+        requested_by TEXT NOT NULL,
+        promoter_name TEXT NOT NULL,
+        location TEXT NOT NULL,
+        current_sku_code TEXT NOT NULL,
+        current_sku_name TEXT NOT NULL,
+        current_category TEXT NOT NULL,
+        current_quantity INTEGER NOT NULL,
+        current_selling_price REAL NOT NULL,
+        current_sale_amount REAL NOT NULL,
+        requested_sku_code TEXT NOT NULL,
+        requested_sku_name TEXT NOT NULL,
+        requested_category TEXT NOT NULL,
+        requested_quantity INTEGER NOT NULL,
+        requested_selling_price REAL NOT NULL,
+        requested_sale_amount REAL NOT NULL,
+        request_reason TEXT NOT NULL,
+        status TEXT NOT NULL,
+        reviewer_username TEXT NOT NULL,
+        review_notes TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        reviewed_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS import_previews (
+        username TEXT PRIMARY KEY,
+        preview_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+]
+
 
 def normalize_text(value: object) -> str:
     return "" if value is None else str(value).strip()
@@ -119,114 +240,39 @@ def to_float(value: object) -> float:
         return 0.0
 
 
-def connect(db_path: str | Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(str(db_path))
+def is_postgres_target(target: str | Path) -> bool:
+    text = str(target)
+    return text.startswith("postgres://") or text.startswith("postgresql://")
+
+
+def is_sqlite_connection(conn: Any) -> bool:
+    return isinstance(conn, sqlite3.Connection)
+
+
+def connect(db_path: str | Path):
+    target = str(db_path)
+    if is_postgres_target(target):
+        if psycopg is None:
+            raise RuntimeError("psycopg is required when DATABASE_URL points to PostgreSQL.")
+        return psycopg.connect(target, row_factory=dict_row)
+
+    conn = sqlite3.connect(target)
     conn.row_factory = sqlite3.Row
     return conn
 
 
-def create_schema(conn: sqlite3.Connection) -> None:
-    conn.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS users (
-            username TEXT PRIMARY KEY,
-            password_hash TEXT NOT NULL,
-            full_name TEXT NOT NULL,
-            role TEXT NOT NULL,
-            location TEXT NOT NULL,
-            active TEXT NOT NULL
-        );
+def placeholders(conn: Any, count: int) -> str:
+    token = "?" if is_sqlite_connection(conn) else "%s"
+    return ", ".join([token] * count)
 
-        CREATE TABLE IF NOT EXISTS skus (
-            sku_code TEXT PRIMARY KEY,
-            sku_name TEXT NOT NULL,
-            category TEXT NOT NULL,
-            default_price REAL NOT NULL,
-            active TEXT NOT NULL
-        );
 
-        CREATE TABLE IF NOT EXISTS targets (
-            id INTEGER PRIMARY KEY,
-            target_from TEXT NOT NULL,
-            target_to TEXT NOT NULL,
-            promoter_username TEXT NOT NULL,
-            promoter_name TEXT NOT NULL,
-            target_amount REAL NOT NULL,
-            notes TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS sales (
-            id INTEGER PRIMARY KEY,
-            sale_date TEXT NOT NULL,
-            username TEXT NOT NULL,
-            promoter_name TEXT NOT NULL,
-            location TEXT NOT NULL,
-            sku_code TEXT NOT NULL,
-            sku_name TEXT NOT NULL,
-            category TEXT NOT NULL,
-            quantity INTEGER NOT NULL,
-            selling_price REAL NOT NULL,
-            sale_amount REAL NOT NULL,
-            notes TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS audit_logs (
-            id INTEGER PRIMARY KEY,
-            event_time TEXT NOT NULL,
-            actor_username TEXT NOT NULL,
-            actor_role TEXT NOT NULL,
-            action TEXT NOT NULL,
-            entity_type TEXT NOT NULL,
-            entity_id TEXT NOT NULL,
-            details TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS historical_sales (
-            id INTEGER PRIMARY KEY,
-            period_from TEXT NOT NULL,
-            period_to TEXT NOT NULL,
-            promoter_username TEXT NOT NULL,
-            promoter_name TEXT NOT NULL,
-            total_sales REAL NOT NULL,
-            notes TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS correction_requests (
-            id INTEGER PRIMARY KEY,
-            sale_id INTEGER NOT NULL,
-            sale_date TEXT NOT NULL,
-            requested_by TEXT NOT NULL,
-            promoter_name TEXT NOT NULL,
-            location TEXT NOT NULL,
-            current_sku_code TEXT NOT NULL,
-            current_sku_name TEXT NOT NULL,
-            current_category TEXT NOT NULL,
-            current_quantity INTEGER NOT NULL,
-            current_selling_price REAL NOT NULL,
-            current_sale_amount REAL NOT NULL,
-            requested_sku_code TEXT NOT NULL,
-            requested_sku_name TEXT NOT NULL,
-            requested_category TEXT NOT NULL,
-            requested_quantity INTEGER NOT NULL,
-            requested_selling_price REAL NOT NULL,
-            requested_sale_amount REAL NOT NULL,
-            request_reason TEXT NOT NULL,
-            status TEXT NOT NULL,
-            reviewer_username TEXT NOT NULL,
-            review_notes TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            reviewed_at TEXT NOT NULL
-        );
-        """
-    )
+def create_schema(conn: Any) -> None:
+    for statement in SCHEMA_STATEMENTS:
+        conn.execute(statement)
     conn.commit()
 
 
-def table_count(conn: sqlite3.Connection, table_name: str) -> int:
+def table_count(conn: Any, table_name: str) -> int:
     return int(conn.execute(f"SELECT COUNT(*) AS count FROM {table_name}").fetchone()["count"])
 
 
@@ -249,7 +295,7 @@ def read_sheet(workbook, sheet_name: str) -> list[dict[str, object]]:
     return records
 
 
-def migrate_from_workbook(conn: sqlite3.Connection, workbook_path: str | Path) -> None:
+def migrate_from_workbook(conn: Any, workbook_path: str | Path) -> None:
     path = Path(workbook_path)
     if not path.exists():
         seed_defaults(conn)
@@ -382,12 +428,13 @@ def migrate_from_workbook(conn: sqlite3.Connection, workbook_path: str | Path) -
             "targets": targets,
             "sales": sales,
             "audit_logs": audit_logs,
+            "historical_sales": [],
             "correction_requests": [],
         },
     )
 
 
-def seed_defaults(conn: sqlite3.Connection) -> None:
+def seed_defaults(conn: Any) -> None:
     save_all_data(
         conn,
         {
@@ -396,6 +443,7 @@ def seed_defaults(conn: sqlite3.Connection) -> None:
             "targets": [],
             "sales": [],
             "audit_logs": [],
+            "historical_sales": [],
             "correction_requests": [],
         },
     )
@@ -409,8 +457,11 @@ def ensure_database(db_path: str | Path, workbook_path: str | Path) -> None:
     conn.close()
 
 
-def rows_to_dicts(cursor_rows: list[sqlite3.Row]) -> list[dict[str, object]]:
-    return [dict(row) for row in cursor_rows]
+def rows_to_dicts(cursor_rows: list[Any]) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for row in cursor_rows:
+        rows.append(dict(row))
+    return rows
 
 
 def load_all_data(db_path: str | Path) -> dict[str, list[dict[str, object]]]:
@@ -428,43 +479,63 @@ def load_all_data(db_path: str | Path) -> dict[str, list[dict[str, object]]]:
     return data
 
 
-def save_all_data(conn_or_path: sqlite3.Connection | str | Path, data: dict[str, list[dict[str, object]]]) -> None:
-    owns_conn = not isinstance(conn_or_path, sqlite3.Connection)
+def execute_insert_many(conn: Any, table_name: str, columns: list[str], rows: list[tuple[Any, ...]]) -> None:
+    if not rows:
+        return
+    columns_sql = ", ".join(columns)
+    sql = f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders(conn, len(columns))})"
+    conn.executemany(sql, rows)
+
+
+def save_all_data(conn_or_path: Any, data: dict[str, list[dict[str, object]]]) -> None:
+    owns_conn = not hasattr(conn_or_path, "execute") or isinstance(conn_or_path, (str, Path))
     conn = connect(conn_or_path) if owns_conn else conn_or_path
 
     conn.execute("DELETE FROM users")
-    conn.executemany(
-        "INSERT INTO users (username, password_hash, full_name, role, location, active) VALUES (?, ?, ?, ?, ?, ?)",
+    execute_insert_many(
+        conn,
+        "users",
+        USERS_COLUMNS,
         [(row.get("username"), row.get("password_hash"), row.get("full_name"), row.get("role"), row.get("location"), row.get("active")) for row in data["users"]],
     )
 
     conn.execute("DELETE FROM skus")
-    conn.executemany(
-        "INSERT INTO skus (sku_code, sku_name, category, default_price, active) VALUES (?, ?, ?, ?, ?)",
+    execute_insert_many(
+        conn,
+        "skus",
+        SKUS_COLUMNS,
         [(row.get("sku_code"), row.get("sku_name"), row.get("category"), row.get("default_price"), row.get("active")) for row in data["skus"]],
     )
 
     conn.execute("DELETE FROM targets")
-    conn.executemany(
-        "INSERT INTO targets (id, target_from, target_to, promoter_username, promoter_name, target_amount, notes, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    execute_insert_many(
+        conn,
+        "targets",
+        TARGETS_COLUMNS,
         [(row.get("id"), row.get("target_from"), row.get("target_to"), row.get("promoter_username"), row.get("promoter_name"), row.get("target_amount"), row.get("notes"), row.get("updated_at")) for row in data["targets"]],
     )
 
     conn.execute("DELETE FROM sales")
-    conn.executemany(
-        "INSERT INTO sales (id, sale_date, username, promoter_name, location, sku_code, sku_name, category, quantity, selling_price, sale_amount, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    execute_insert_many(
+        conn,
+        "sales",
+        SALES_COLUMNS,
         [(row.get("id"), row.get("sale_date"), row.get("username"), row.get("promoter_name"), row.get("location"), row.get("sku_code"), row.get("sku_name"), row.get("category"), row.get("quantity"), row.get("selling_price"), row.get("sale_amount"), row.get("notes"), row.get("created_at"), row.get("updated_at")) for row in data["sales"]],
     )
 
     conn.execute("DELETE FROM audit_logs")
-    conn.executemany(
-        "INSERT INTO audit_logs (id, event_time, actor_username, actor_role, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    execute_insert_many(
+        conn,
+        "audit_logs",
+        AUDIT_COLUMNS,
         [(row.get("id"), row.get("event_time"), row.get("actor_username"), row.get("actor_role"), row.get("action"), row.get("entity_type"), row.get("entity_id"), row.get("details")) for row in data["audit_logs"]],
     )
 
     conn.execute("DELETE FROM historical_sales")
-    conn.executemany(
-        "INSERT INTO historical_sales (id, period_from, period_to, promoter_username, promoter_name, total_sales, notes, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    execute_insert_many(
+        conn,
+        "historical_sales",
+        HISTORICAL_SALES_COLUMNS,
         [
             (
                 row.get("id"),
@@ -481,15 +552,10 @@ def save_all_data(conn_or_path: sqlite3.Connection | str | Path, data: dict[str,
     )
 
     conn.execute("DELETE FROM correction_requests")
-    conn.executemany(
-        """
-        INSERT INTO correction_requests (
-            id, sale_id, sale_date, requested_by, promoter_name, location,
-            current_sku_code, current_sku_name, current_category, current_quantity, current_selling_price, current_sale_amount,
-            requested_sku_code, requested_sku_name, requested_category, requested_quantity, requested_selling_price, requested_sale_amount,
-            request_reason, status, reviewer_username, review_notes, created_at, reviewed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
+    execute_insert_many(
+        conn,
+        "correction_requests",
+        CORRECTION_REQUEST_COLUMNS,
         [
             (
                 row.get("id"),
@@ -524,3 +590,42 @@ def save_all_data(conn_or_path: sqlite3.Connection | str | Path, data: dict[str,
     conn.commit()
     if owns_conn:
         conn.close()
+
+
+def load_import_preview(db_path: str | Path, username: str) -> dict[str, object] | None:
+    conn = connect(db_path)
+    create_schema(conn)
+    row = conn.execute("SELECT preview_json FROM import_previews WHERE username = ?", (username,)).fetchone() if is_sqlite_connection(conn) else conn.execute("SELECT preview_json FROM import_previews WHERE username = %s", (username,)).fetchone()
+    conn.close()
+    if row is None:
+        return None
+    try:
+        return json.loads(row["preview_json"])
+    except (KeyError, TypeError, json.JSONDecodeError):
+        return None
+
+
+def save_import_preview(db_path: str | Path, username: str, preview: dict[str, object]) -> None:
+    conn = connect(db_path)
+    create_schema(conn)
+    payload = json.dumps(preview)
+    updated_at = datetime.now(timezone.utc).isoformat()
+    sql = """
+    INSERT INTO import_previews (username, preview_json, updated_at)
+    VALUES ({placeholder}, {placeholder}, {placeholder})
+    ON CONFLICT (username) DO UPDATE
+    SET preview_json = EXCLUDED.preview_json,
+        updated_at = EXCLUDED.updated_at
+    """
+    placeholder = "?" if is_sqlite_connection(conn) else "%s"
+    conn.execute(sql.format(placeholder=placeholder), (username, payload, updated_at))
+    conn.commit()
+    conn.close()
+
+
+def clear_import_preview(db_path: str | Path, username: str) -> None:
+    conn = connect(db_path)
+    create_schema(conn)
+    conn.execute("DELETE FROM import_previews WHERE username = ?", (username,)) if is_sqlite_connection(conn) else conn.execute("DELETE FROM import_previews WHERE username = %s", (username,))
+    conn.commit()
+    conn.close()

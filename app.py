@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import csv
 import io
-import json
 import os
 from datetime import date, datetime
 from functools import wraps
 from pathlib import Path
 
-from db_store import ensure_database, load_all_data, save_all_data
+from db_store import clear_import_preview, ensure_database, load_all_data, load_import_preview, save_all_data, save_import_preview
 from flask import Flask, flash, redirect, render_template, request, session, url_for, Response
 from openpyxl import Workbook, load_workbook
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -17,8 +16,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_DATA_DIR = Path(os.environ.get("APP_DATA_DIR", BASE_DIR))
 DATA_FILE = Path(os.environ.get("DATA_FILE", str(DEFAULT_DATA_DIR / "daily_sales_portal.xlsx")))
-DB_FILE = Path(os.environ.get("DATABASE_PATH", str(DEFAULT_DATA_DIR / "sales_portal.db")))
-IMPORT_PREVIEW_DIR = Path(os.environ.get("IMPORT_PREVIEW_DIR", str(DEFAULT_DATA_DIR / "_import_previews")))
+DATABASE = os.environ.get("DATABASE_URL", str(Path(os.environ.get("DATABASE_PATH", str(DEFAULT_DATA_DIR / "sales_portal.db")))))
 
 USERS_SHEET = "Users"
 SKUS_SHEET = "SKUs"
@@ -95,8 +93,7 @@ DEFAULT_SKUS = [
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "daily-sales-portal-secret")
 app.config["DATA_FILE"] = str(DATA_FILE)
-app.config["DATABASE"] = str(DB_FILE)
-app.config["IMPORT_PREVIEW_DIR"] = str(IMPORT_PREVIEW_DIR)
+app.config["DATABASE"] = DATABASE
 
 
 def to_int(value: object) -> int:
@@ -198,11 +195,10 @@ def save_workbook(workbook) -> None:
 
 
 def initialize_workbook() -> None:
-    Path(app.config["DATABASE"]).parent.mkdir(parents=True, exist_ok=True)
+    if not str(app.config["DATABASE"]).startswith(("postgres://", "postgresql://")):
+        Path(app.config["DATABASE"]).parent.mkdir(parents=True, exist_ok=True)
     Path(app.config["DATA_FILE"]).parent.mkdir(parents=True, exist_ok=True)
     ensure_database(app.config["DATABASE"], app.config["DATA_FILE"])
-    preview_dir = Path(app.config["IMPORT_PREVIEW_DIR"])
-    preview_dir.mkdir(parents=True, exist_ok=True)
 
 
 initialize_workbook()
@@ -335,32 +331,6 @@ def append_audit_log(
             "details": details,
         }
     )
-
-
-def import_preview_path(username: str) -> Path:
-    safe_name = normalize_text(username).lower() or "unknown"
-    return Path(app.config["IMPORT_PREVIEW_DIR"]) / f"{safe_name}_preview.json"
-
-
-def clear_import_preview(username: str) -> None:
-    preview_path = import_preview_path(username)
-    if preview_path.exists():
-        preview_path.unlink()
-
-
-def load_import_preview(username: str) -> dict[str, object] | None:
-    preview_path = import_preview_path(username)
-    if not preview_path.exists():
-        return None
-    try:
-        return json.loads(preview_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-
-
-def save_import_preview(username: str, preview: dict[str, object]) -> None:
-    preview_path = import_preview_path(username)
-    preview_path.write_text(json.dumps(preview, indent=2), encoding="utf-8")
 
 
 def build_row_result(row_number: int, status: str, messages: list[str], preview: dict[str, object] | None = None) -> dict[str, object]:
@@ -2427,7 +2397,7 @@ def admin_setup():
 @super_admin_required
 def import_setup():
     actor = current_user()
-    preview = load_import_preview(actor["username"]) if actor is not None else None
+    preview = load_import_preview(app.config["DATABASE"], actor["username"]) if actor is not None else None
 
     if request.method == "POST":
         uploaded_file = request.files.get("backend_file")
@@ -2437,7 +2407,7 @@ def import_setup():
 
         preview = import_backend_template(uploaded_file)
         if actor is not None:
-            save_import_preview(actor["username"], preview)
+            save_import_preview(app.config["DATABASE"], actor["username"], preview)
 
         if preview["is_valid"]:
             flash("Preview ready. Review the rows below, then confirm the import.", "success")
@@ -2455,7 +2425,7 @@ def confirm_import_setup():
     if actor is None:
         return redirect(url_for("login"))
 
-    preview = load_import_preview(actor["username"])
+    preview = load_import_preview(app.config["DATABASE"], actor["username"])
     if preview is None:
         flash("No import preview was found. Upload a workbook first.", "error")
         return redirect(url_for("import_setup"))
@@ -2476,7 +2446,7 @@ def confirm_import_setup():
         "Imported users, SKUs, and targets from confirmed workbook preview",
     )
     write_all_data(imported_data)
-    clear_import_preview(actor["username"])
+    clear_import_preview(app.config["DATABASE"], actor["username"])
     flash("Backend template imported successfully. Plain passwords were converted to secure hashes.", "success")
     return redirect(url_for("manage_users"))
 
@@ -2486,7 +2456,7 @@ def confirm_import_setup():
 def discard_import_setup():
     actor = current_user()
     if actor is not None:
-        clear_import_preview(actor["username"])
+        clear_import_preview(app.config["DATABASE"], actor["username"])
     flash("Import preview cleared.", "success")
     return redirect(url_for("import_setup"))
 
